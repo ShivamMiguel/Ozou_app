@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# contas Instagram ligadas por cada negócio
+/.data/
+
 # vercel
 .vercel
 

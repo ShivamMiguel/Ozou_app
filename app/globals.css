@@ -1,26 +1,273 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+  The source mock loads Tailwind 3.4 from the CDN. These overrides keep the
+  named palette, the small radius and the small shadow on those values, and
+  drop shadow-xs / shadow-2xs, which that CDN does not generate.
+*/
+@theme {
+  --font-sans: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --radius-sm: 0.125rem;
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-gray-950: #030712;
+
+  --color-zinc-50: #fafafa;
+  --color-zinc-100: #f4f4f5;
+  --color-zinc-200: #e4e4e7;
+  --color-zinc-300: #d4d4d8;
+  --color-zinc-400: #a1a1aa;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #52525b;
+  --color-zinc-700: #3f3f46;
+  --color-zinc-800: #27272a;
+  --color-zinc-900: #18181b;
+  --color-zinc-950: #09090b;
+
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-300: #d4d4d4;
+  --color-neutral-400: #a3a3a3;
+  --color-neutral-500: #737373;
+  --color-neutral-600: #525252;
+  --color-neutral-700: #404040;
+  --color-neutral-800: #262626;
+  --color-neutral-900: #171717;
+  --color-neutral-950: #0a0a0a;
+
+  --color-red-100: #fee2e2;
+  --color-red-300: #fca5a5;
+  --color-amber-300: #fcd34d;
+  --color-lime-200: #d9f99d;
+
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-300: #6ee7b7;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+  --color-emerald-800: #065f46;
+
+  --color-pink-100: #fce7f3;
+  --color-pink-700: #be185d;
+  --color-blue-100: #dbeafe;
+  --color-blue-700: #1d4ed8;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Every screen stays inside the window. Lists only scroll inside a pane that is already full. */
+html,
+body {
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+body > div,
+body > div > *:not(.ozou-wallet-chip) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.ozou-wallet-chip {
+  width: max-content;
+  max-width: max-content;
+}
+
+html.ozou-compact .py-16,
+html.ozou-compact .py-14,
+html.ozou-compact .py-12,
+html.ozou-compact .py-10,
+html.ozou-compact .py-9,
+html.ozou-compact .py-8 {
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
+
+html.ozou-compact .pt-12,
+html.ozou-compact .pt-10,
+html.ozou-compact .pt-8,
+html.ozou-compact .pt-7 {
+  padding-top: 0.7rem !important;
+}
+
+html.ozou-compact .pb-16,
+html.ozou-compact .pb-12,
+html.ozou-compact .pb-10,
+html.ozou-compact .pb-8,
+html.ozou-compact .pb-6 {
+  padding-bottom: 0.7rem !important;
+}
+
+html.ozou-compact .p-14,
+html.ozou-compact .p-12,
+html.ozou-compact .p-10,
+html.ozou-compact .p-9,
+html.ozou-compact .p-8,
+html.ozou-compact .md\:p-14,
+html.ozou-compact .sm\:p-9,
+html.ozou-compact .sm\:p-8 {
+  padding: 1rem !important;
+}
+
+html.ozou-compact .px-10,
+html.ozou-compact .px-9,
+html.ozou-compact .px-8 {
+  padding-left: 1.25rem !important;
+  padding-right: 1.25rem !important;
+}
+
+html.ozou-compact .mb-16,
+html.ozou-compact .mb-14,
+html.ozou-compact .mb-12,
+html.ozou-compact .mb-10,
+html.ozou-compact .lg\:mb-16,
+html.ozou-compact .lg\:mb-12,
+html.ozou-compact .mt-10,
+html.ozou-compact .mt-8,
+html.ozou-compact .my-12 {
+  margin-top: 0.6rem !important;
+  margin-bottom: 0.6rem !important;
+}
+
+html.ozou-compact .space-y-8 > :not([hidden]) ~ :not([hidden]),
+html.ozou-compact .space-y-7 > :not([hidden]) ~ :not([hidden]),
+html.ozou-compact .space-y-6 > :not([hidden]) ~ :not([hidden]),
+html.ozou-compact .space-y-5 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.55rem !important;
+}
+
+html.ozou-compact .gap-12,
+html.ozou-compact .gap-10,
+html.ozou-compact .gap-8 {
+  gap: 0.75rem !important;
+}
+
+html.ozou-compact table th,
+html.ozou-compact table td {
+  padding-top: 0.3rem !important;
+  padding-bottom: 0.3rem !important;
+}
+
+/* App screens: the nav and the page header stay put. Only the middle pane moves. */
+body > div > *:has(aside[class*="border-r"]) {
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0 !important;
+  overflow: hidden;
+}
+
+:is(div, main, section):has(> aside[class*="border-r"]) {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0 !important;
+  overflow: hidden;
+}
+
+:is(div, main, section):has(> aside[class*="border-r"]) > style,
+:is(div, main, section):has(> aside[class*="border-r"]) > script {
+  display: none !important;
+}
+
+:is(div, main, section):has(> aside[class*="border-r"]) > aside[class*="border-r"] {
+  height: auto;
+  max-height: 100dvh;
+  min-height: 0 !important;
+  align-self: stretch;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:is(div, main, section):has(> aside[class*="border-r"]) > :not(aside, style, script) {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  max-width: 100%;
+  min-height: 0;
+  align-self: stretch;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+}
+
+:is(div, main, section):has(> aside[class*="border-r"]) > :not(aside, style, script) > * {
+  flex-shrink: 0;
+}
+
+:is(div, main, section):has(> aside[class*="border-r"]) > :not(aside, style, script) > [class*="flex-1"] {
+  flex: 1 1 auto;
+  min-height: min-content;
+  overflow: visible;
+}
+
+:is(div, main, section):has(> aside[class*="border-r"]) > :not(aside, style, script) > header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex-shrink: 0;
+}
+
+@layer base {
+  :is(div, main, section):has(> aside[class*="border-r"]),
+  :is(div, main, section):has(> aside[class*="border-r"]) > :not(aside, style, script),
+  :is(div, main, section):has(> aside[class*="border-r"]) > :not(aside, style, script) > header {
+    background-color: inherit;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.ozou-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.ozou-scroll::-webkit-scrollbar-thumb {
+  background: #e4e4e7;
+  border-radius: 4px;
+}
+
+.app-shell {
+  overscroll-behavior: none;
+}
+
+.app-shell > aside {
+  scrollbar-width: none;
+}
+
+.app-shell > aside::-webkit-scrollbar {
+  display: none;
+}
+
+[role="dialog"] {
+  overflow: hidden;
 }
