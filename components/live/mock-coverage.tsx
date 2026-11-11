@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { formatKz } from "@/lib/api/format";
 import type { ChannelKind } from "@/lib/api/types";
+import { afterLoginPath } from "./phone-inbox";
 import { useOzou } from "./use-ozou";
 import { messageCounts, TOP_UPS } from "./wallet";
 
@@ -104,7 +105,7 @@ export function MockCoverage() {
       if (text.includes("continuar com google")) {
         await api.signInWithGoogle();
         notify("Sessão iniciada com Google de demonstração.");
-        router.push("/inicio");
+        router.push(afterLoginPath());
         return;
       }
 

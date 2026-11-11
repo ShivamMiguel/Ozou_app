@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ChannelKind } from "@/lib/api/types";
 import { channelBadge, clock, formatWhen } from "@/lib/api/format";
+import { InstallPush, showLocalMessage } from "@/components/live/install-push";
+import { messageCounts } from "@/components/live/wallet";
 import { useOzou } from "@/components/live/use-ozou";
 
 const jakartaScope = {
@@ -25,12 +27,18 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
   const [selectedId, setSelectedId] = useState("cv-sofia");
   const [instagramAccount, setInstagramAccount] = useState<string | null>(null);
   const [sendError, setSendError] = useState("");
+  const [phoneView, setPhoneView] = useState<"list" | "thread">("list");
+  const [writing, setWriting] = useState(false);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const canal = params.get("canal");
     if (canal === "WhatsApp" || canal === "Instagram" || canal === "SMS" || canal === "E-mail") setChannel(canal);
     const stored = window.sessionStorage.getItem("ozou.openConversation");
-    if (stored) setSelectedId(stored);
+    if (stored) {
+      setSelectedId(stored);
+      setPhoneView("thread");
+      window.sessionStorage.removeItem("ozou.openConversation");
+    }
     const workspace = db.activeWorkspaceId;
     let stop = false;
     async function sync() {
@@ -45,8 +53,11 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
       const current = api.peek().channels.find((item) => item.kind === "Instagram");
       if (current?.handle !== handle || current.status !== "connected") await api.connectChannel("Instagram", handle);
       const inbox = (await fetch(`/api/instagram/inbox?workspace=${encodeURIComponent(workspace)}`).then((response) => response.json())) as { messages?: Array<{ id: string; senderId: string; senderName: string; body: string }> };
+      const known = new Set(api.peek().messages.map((item) => item.id));
       for (const message of inbox.messages ?? []) {
+        const fresh = !known.has(message.id);
         await api.receiveInbound({ channel: "Instagram", name: message.senderName, handle: message.senderId, body: message.body, externalId: message.id });
+        if (fresh) void showLocalMessage({ id: message.id, senderName: message.senderName, body: message.body });
       }
     }
     sync().catch(() => undefined);
@@ -132,13 +143,14 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
       return;
     }
     if (!pending && stickToBottom.current) root.scrollTop = root.scrollHeight;
-  }, [selected?.id, visibleMessages.length]);
+  }, [selected?.id, visibleMessages.at(-1)?.id, phoneView]);
 
   function openConversation(id: string) {
     stickToBottom.current = true;
     pendingScroll.current = null;
     setMessageLimit(PAGE);
     setSelectedId(id);
+    setPhoneView("thread");
   }
 
   async function send() {
@@ -172,7 +184,7 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
   }
 
   return (
-    <div className="app-shell relative h-dvh w-full overflow-hidden flex bg-[#FAFAFA] text-[#141416] antialiased ozou-inbox" style={jakartaScope}>
+    <div className="app-shell relative h-dvh w-full overflow-hidden flex bg-[#FAFAFA] text-[#141416] antialiased ozou-inbox" data-phone-view={phoneView} style={jakartaScope}>
       <style>{`
         .ozou-inbox ::-webkit-scrollbar { width: 5px; height: 5px; }
         .ozou-inbox ::-webkit-scrollbar-track { background: transparent; }
@@ -180,6 +192,33 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
         .ozou-inbox > main { overflow: hidden !important; }
         .ozou-inbox-body { flex: 1 1 auto !important; min-height: 0 !important; overflow: hidden !important; }
         .ozou-inbox-scroll { flex: 1 1 auto; min-height: 0 !important; overflow-x: hidden !important; overflow-y: auto !important; overscroll-behavior: contain; }
+        @media (max-width: 767px) {
+          .ozou-inbox > aside,
+          .ozou-inbox-desk-header,
+          .ozou-inbox-desk-only,
+          .ozou-inbox-details,
+          .ozou-desk-composer { display: none !important; }
+          .ozou-phone-list { display: block !important; }
+          .ozou-phone-thread,
+          .ozou-phone-composer,
+          .ozou-avatar { display: flex !important; }
+          .ozou-inbox-body { padding: 0 !important; gap: 0 !important; background: #fff !important; }
+          .ozou-inbox-list,
+          .ozou-inbox-thread {
+            width: 100% !important;
+            max-width: 100% !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            flex: 1 1 auto !important;
+          }
+          .ozou-inbox[data-phone-view="list"] .ozou-inbox-thread { display: none !important; }
+          .ozou-inbox[data-phone-view="thread"] .ozou-inbox-list { display: none !important; }
+          .ozou-inbox-list input,
+          .ozou-phone-composer textarea { font-size: 16px; }
+          .ozou-inbox-list input { min-height: 44px; }
+          .ozou-phone-list .overflow-x-auto { scrollbar-width: none; }
+          .ozou-phone-list .overflow-x-auto::-webkit-scrollbar { display: none; }
+        }
       `}</style>
       <aside className="w-[230px] flex-shrink-0 h-full bg-white border-r border-[#EFEFEF] flex flex-col justify-between p-4 overflow-hidden z-20" inert={compose}>
         <div className="flex flex-col space-y-6">
@@ -289,7 +328,7 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-white" inert={compose}>
-        <header className="px-6 pt-5 pb-4 border-b border-[#F0F2F4] flex-shrink-0">
+        <header className="ozou-inbox-desk-header px-6 pt-5 pb-4 border-b border-[#F0F2F4] flex-shrink-0">
           <div className="flex items-center justify-between mb-1">
             <nav className="flex items-center space-x-1.5 text-xs text-[#717680] font-normal">
               <span>Workspace</span>
@@ -325,10 +364,29 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
         </header>
         {instagramAccount && channel === "Instagram" ? <p className="mx-4 mt-3 rounded-2xl bg-[#F4F8F1] px-4 py-2.5 text-[12px] text-[#344054]">O Instagram @{instagramAccount} está ligado a este negócio. Quem escrever para esta conta aparece aqui.</p> : null}
         <div className="ozou-inbox-body flex flex-1 overflow-hidden p-4 gap-4 bg-[#F8FAFC]">
-          <section className="w-[285px] min-h-0 self-stretch flex-shrink-0 bg-white border border-[#EAECF0] rounded-2xl flex flex-col overflow-hidden">
+          <section className="ozou-inbox-list w-[285px] min-h-0 self-stretch flex-shrink-0 bg-white border border-[#EAECF0] rounded-2xl flex flex-col overflow-hidden">
+            <div className="ozou-phone-list hidden px-4 pt-4 pb-2 shrink-0">
+              <div className="flex items-center justify-between gap-3">
+                <h1 className="text-[22px] font-bold tracking-tight text-[#141416]">Conversas</h1>
+                <button className="h-9 px-3 rounded-full bg-[#141416] text-white text-xs font-semibold" type="button" onClick={() => setWriting(true)}>Nova</button>
+              </div>
+              <p className="mt-1 text-[11px] text-[#717680] truncate">
+                {messageCounts(db.wallet.balanceKz).map((item) => `${item.name} ${item.sends.toLocaleString("pt-PT")}`).join(" · ")}
+              </p>
+              <div className="mt-3 flex gap-1.5 overflow-x-auto">
+                <button className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold ${unreadOnly ? "bg-white border border-[#E4E7EC] text-[#344054]" : "bg-[#141416] text-white"}`} type="button" onClick={() => setUnreadOnly(false)}>Todas {openCount}</button>
+                <button className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold ${unreadOnly ? "bg-[#141416] text-white" : "bg-white border border-[#E4E7EC] text-[#344054]"}`} type="button" onClick={() => setUnreadOnly(true)}>Não lidas {unreadCount}</button>
+                {channelOptions.map((option) => (
+                  <button key={option} className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium ${channel === option ? "bg-[#EFF8E2] text-[#426815]" : "bg-[#F8F9FA] text-[#475467]"}`} type="button" onClick={() => setChannel(option)}>
+                    {option === "todos" ? "Canais" : option}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <InstallPush workspaceId={db.activeWorkspaceId} />
             <div className="p-3 border-b border-[#F2F4F7] space-y-2.5 shrink-0">
               <input className="w-full pl-3 pr-3 py-2 bg-[#F8F9FA] rounded-xl text-xs placeholder-[#98A2B3] border-none focus:ring-1 focus:ring-black focus:bg-white text-[#141416] transition-all" placeholder="Pesquisar por nome ou mensagem" type="text" value={search} onChange={(event) => setSearch(event.target.value)} />
-              <div className="relative flex items-center justify-between text-[11px] text-[#475467] font-medium px-1">
+              <div className="ozou-inbox-desk-only relative flex items-center justify-between text-[11px] text-[#475467] font-medium px-1">
                 <button className="flex items-center space-x-1 cursor-pointer hover:text-black" type="button" onClick={() => setChannelsOpen((open) => !open)}>
                   <span>{channel === "todos" ? "Todos os canais" : channel}</span>
                   <svg className="w-3 h-3 text-[#98A2B3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /></svg>
@@ -354,15 +412,18 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
                 const preview = api.messagesOf(item.id).at(-1)?.body ?? "";
                 const active = item.id === selected?.id;
                 return (
-                  <button key={item.id} className={`w-full p-3 text-left cursor-pointer transition-colors ${active ? "bg-[#F8F9FA]" : "hover:bg-[#FAFAFA]"}`} type="button" onClick={() => openConversation(item.id)}>
+                  <button key={item.id} className={`flex w-full items-center p-3 text-left cursor-pointer transition-colors ${active ? "bg-[#F8F9FA]" : "hover:bg-[#FAFAFA]"}`} type="button" onClick={() => openConversation(item.id)}>
+                    <span className="ozou-avatar hidden mr-3 h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F3F4EE] text-sm font-bold text-[#141416]">{person?.name.slice(0, 1)}</span>
+                    <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between mb-1">
                       <span className={`text-xs ${active || item.unread ? "font-bold" : "font-semibold"} text-[#141416]`}>{person?.name}</span>
                       <span className="text-[10px] text-[#98A2B3]">{formatWhen(item.updatedAt)}</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium ${channelBadge(item.channel)}`}>{item.channel}</span>
+                      <span className={`shrink-0 whitespace-nowrap px-2 py-0.5 rounded-md text-[10px] font-medium ${channelBadge(item.channel)}`}>{item.channel}</span>
                       <span className="text-[11px] truncate font-normal text-[#717680]">{preview}</span>
                       {item.unread ? <span className="ml-auto w-4 h-4 text-[9px] font-bold rounded-full flex items-center justify-center flex-shrink-0 bg-[#141416] text-white">{item.unread}</span> : null}
+                    </div>
                     </div>
                   </button>
                 );
@@ -372,8 +433,16 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
             <div className="p-2.5 text-center text-[11px] text-[#98A2B3] border-t border-[#F2F4F7] shrink-0">{visibleConversations.length} de {conversations.length} conversas</div>
           </section>
 
-          <section className="flex-1 min-h-0 self-stretch bg-white border border-[#EAECF0] rounded-2xl flex flex-col overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-[#F2F4F7] flex items-center justify-between flex-shrink-0">
+          <section className="ozou-inbox-thread flex-1 min-h-0 self-stretch bg-white border border-[#EAECF0] rounded-2xl flex flex-col overflow-hidden">
+            <div className="ozou-phone-thread hidden items-center gap-3 border-b border-[#F2F4F7] px-2 py-2.5 shrink-0">
+              <button className="h-10 w-10 rounded-full text-lg text-[#141416]" type="button" aria-label="Voltar às conversas" onClick={() => setPhoneView("list")}>←</button>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold text-[#141416]">{contact?.name ?? "Conversa"}</div>
+                <div className="text-[11px] text-[#717680]">{selected?.channel ?? "Canal"} · {selected?.status === "resolved" ? "Resolvida" : "Em aberto"}</div>
+              </div>
+              <button className="h-9 px-3 rounded-full border border-[#E4E7EC] text-[11px] font-semibold text-[#344054]" type="button" onClick={async () => { if (selected) { await api.resolveConversation(selected.id); setPhoneView("list"); } }}>Resolver</button>
+            </div>
+            <div className="ozou-inbox-desk-only px-5 py-3.5 border-b border-[#F2F4F7] flex items-center justify-between flex-shrink-0">
               <div>
                 <div className="text-sm font-bold text-[#141416]">{contact?.name ?? "Seleccione uma conversa"}</div>
                 <div className="text-[11px] text-[#717680] flex items-center space-x-1.5 mt-0.5">
@@ -398,7 +467,7 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
                 </div>
               ))}
             </div>
-            <div className="p-4 pt-1 flex-shrink-0">
+            <div className="ozou-desk-composer p-4 pt-1 flex-shrink-0">
               {selected?.channel === "Instagram" ? <p className="mb-2 text-[11px] text-[#717680]">A resposta sai pelo Instagram deste negócio, para quem escreveu primeiro.</p> : null}
               {sendError ? <p className="mb-2 text-[11px] text-[#9a3412]">{sendError}</p> : null}
               <button className="mb-2.5 inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#EFF8E2] text-[#344054] text-[11px] font-medium cursor-pointer hover:bg-[#E4F3D2] transition-colors" type="button" onClick={suggest}>
@@ -432,9 +501,34 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
                 </div>
               </div>
             </div>
+            <form
+              className="ozou-phone-composer hidden shrink-0 items-end gap-2 border-t border-[#F2F4F7] bg-white px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void send();
+              }}
+            >
+              <button className="mb-0.5 h-11 w-11 shrink-0 rounded-full bg-[#EFF8E2] text-base text-[#4E8B14]" type="button" aria-label="Gerar resposta" onClick={() => void suggest()}>✦</button>
+              <textarea
+                aria-label="Mensagem"
+                className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl bg-[#F8F9FA] px-3 py-3 text-sm text-[#141416] outline-none placeholder:text-[#98A2B3]"
+                placeholder={selected?.channel === "Instagram" ? "Resposta a quem escreveu primeiro" : "Mensagem"}
+                rows={1}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void send();
+                  }
+                }}
+              />
+              <button className="mb-0.5 h-11 shrink-0 rounded-full bg-[#141416] px-4 text-sm font-semibold text-white" type="submit">Enviar</button>
+            </form>
+            {sendError ? <p className="ozou-phone-composer hidden px-4 pb-2 text-[11px] text-[#9a3412]">{sendError}</p> : null}
           </section>
 
-          <section className="w-[270px] flex-shrink-0 bg-white border border-[#EAECF0] rounded-2xl flex flex-col justify-between p-4 overflow-y-auto">
+          <section className="ozou-inbox-details w-[270px] flex-shrink-0 bg-white border border-[#EAECF0] rounded-2xl flex flex-col justify-between p-4 overflow-y-auto">
             <div className="space-y-4">
               <div className="text-xs font-bold text-[#141416]">Detalhes do contacto</div>
               <div className="pt-1">
@@ -487,12 +581,17 @@ export function InboxScreen({ compose = false }: { compose?: boolean }) {
           </section>
         </div>
       </main>
-      {compose ? <NovaConversaModal /> : null}
+      {compose || writing ? (
+        <NovaConversaModal
+          onClose={writing ? () => setWriting(false) : undefined}
+          onOpened={writing ? (id) => { setWriting(false); openConversation(id); } : undefined}
+        />
+      ) : null}
     </div>
   );
 }
 
-function NovaConversaModal() {
+function NovaConversaModal({ onClose, onOpened }: { onClose?: () => void; onOpened?: (id: string) => void }) {
   const { api, db } = useOzou();
   const router = useRouter();
   const people = db.contacts.filter((contact) => !contact.archived);
@@ -508,6 +607,10 @@ function NovaConversaModal() {
     }
     const id = await api.startConversation({ contactId, channel, body });
     window.sessionStorage.setItem("ozou.openConversation", id);
+    if (onOpened) {
+      onOpened(id);
+      return;
+    }
     router.push("/inbox");
   }
 
@@ -519,11 +622,19 @@ function NovaConversaModal() {
         className="bg-white w-full max-w-[640px] overflow-hidden rounded-[28px] shadow-2xl p-6 relative border border-black/5"
         role="dialog"
       >
-        <Link aria-label="Fechar" href="/inbox" className="absolute top-6 right-6 w-8 h-8 rounded-full border border-[#E4E7EC] flex items-center justify-center text-[#717680] hover:text-[#141416] hover:border-[#98A2B3] transition">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-            <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Link>
+        {onClose ? (
+          <button aria-label="Fechar" className="absolute top-6 right-6 w-8 h-8 rounded-full border border-[#E4E7EC] flex items-center justify-center text-[#717680]" type="button" onClick={onClose}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+              <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        ) : (
+          <Link aria-label="Fechar" href="/inbox" className="absolute top-6 right-6 w-8 h-8 rounded-full border border-[#E4E7EC] flex items-center justify-center text-[#717680] hover:text-[#141416] hover:border-[#98A2B3] transition">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+              <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Link>
+        )}
         <div className="mb-4 pr-10">
           <h2 className="text-[26px] font-bold tracking-tight text-[#141416]" id="nova-conversa-title">Nova conversa</h2>
           <p className="text-xs text-[#717680] mt-1">Comece pelo contacto. Escolha depois o melhor canal.</p>
@@ -561,9 +672,13 @@ function NovaConversaModal() {
           )}
           <p className="text-[11px] text-[#717680]">Contacto com consentimento ativo.</p>
           <div className="flex items-center justify-between pt-2">
-            <Link href="/inbox" className="px-8 py-2.5 rounded-full border border-[#E4E7EC] hover:bg-[#F8F9FA] text-xs font-medium text-[#141416] transition">Cancelar</Link>
+            {onClose ? (
+              <button className="px-8 py-2.5 rounded-full border border-[#E4E7EC] hover:bg-[#F8F9FA] text-xs font-medium text-[#141416] transition" type="button" onClick={onClose}>Cancelar</button>
+            ) : (
+              <Link href="/inbox" className="px-8 py-2.5 rounded-full border border-[#E4E7EC] hover:bg-[#F8F9FA] text-xs font-medium text-[#141416] transition">Cancelar</Link>
+            )}
             {channel === "Instagram" ? (
-              <Link href="/inbox?canal=Instagram" className="px-8 py-2.5 rounded-full bg-[#141416] hover:bg-black text-white text-xs font-medium">Ver mensagens</Link>
+              <Link href="/inbox?canal=Instagram" className="px-8 py-2.5 rounded-full bg-[#141416] hover:bg-black text-white text-xs font-medium" onClick={() => onClose?.()}>Ver mensagens</Link>
             ) : (
               <button className="px-8 py-2.5 rounded-full bg-[#141416] hover:bg-black text-white text-xs font-medium flex items-center gap-2 transition" type="submit">
                 <span>Abrir conversa</span>

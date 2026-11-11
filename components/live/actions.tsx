@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
+import { afterLoginPath } from "./phone-inbox";
 import { useOzou } from "./use-ozou";
 
 type Intent = "sign-in" | "sign-up" | "recover" | "reset-password" | "create-company" | "confirm-email";
@@ -19,12 +20,12 @@ export function BoundForm({ intent, className, children }: { intent: Intent; cla
     setError(null);
     try {
       if (intent === "confirm-email") {
-        router.push("/inicio");
+        router.push(afterLoginPath());
         return;
       }
       if (intent === "sign-in") {
         const result = await api.signIn(String(data.get("email") ?? ""), String(data.get("password") ?? ""));
-        router.push(result.ok ? "/inicio" : "/credenciais-invalidas");
+        router.push(result.ok ? afterLoginPath() : "/credenciais-invalidas");
         return;
       }
       if (intent === "sign-up") {
@@ -93,7 +94,7 @@ export function GoogleSignIn({ className, children }: { className: string; child
       type="button"
       onClick={async () => {
         await api.signInWithGoogle();
-        router.push("/inicio");
+        router.push(afterLoginPath());
       }}
     >
       {children}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectionForInstagramUser, rememberInbound } from "@/lib/instagram/accounts";
+import { notifyWorkspace } from "@/lib/push/server";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
       const text = event.message?.text;
       const id = event.message?.mid;
       if (!senderId || !text || !id || senderId === connection.igUserId) continue;
-      await rememberInbound({
+      const fresh = await rememberInbound({
         id,
         workspaceId: connection.workspaceId,
         senderId,
@@ -35,6 +36,14 @@ export async function POST(request: Request) {
         body: text,
         at: new Date(event.timestamp || Date.now()).toISOString(),
       });
+      if (fresh) {
+        await notifyWorkspace(connection.workspaceId, {
+          title: "Nova mensagem no Instagram",
+          body: text,
+          url: "/inbox?canal=Instagram",
+          tag: id,
+        });
+      }
     }
   }
   return NextResponse.json({ ok: true });
